@@ -2,6 +2,12 @@
 ; a structure to hold a digit, this is used by the lexer
 ; a token type will be 'op, 'lparen, 'rparen, or 'digit or 'eof
 ; repr is a character representation
+
+; value node for numbers
+(struct ast-node (val) #:transparent)
+; expression nodes for operators 
+(struct ast-expr-node (operator left-child right-child) #:transparent)
+
 (struct token (type repr) #:transparent
    ; a guard is a function that 'tests' the values you put into the structure
    ; remember: racket is dynamically typed so you kinda have to check things to
@@ -21,12 +27,13 @@
         [(equal? 'lparen t) #t]
         [(equal? 'rparen t) #t]
         [(equal? 'digit t) #t]
+        [(equal? 'eof t) #t]
         [else #f]))
 
 ; input-port -> token
 ; returns the next input token from the input port
 (define (get-next-token input-port)
-  (let ([input (string-ref (read-line input-port) 0)])
+  (let ([input (read-char input-port)])
     (cond
       [(equal? input #\+)     (token 'op #\+)]
       [(equal? input #\*)     (token 'op #\*)]
@@ -42,7 +49,9 @@
       [(equal? input #\7)     (token 'digit #\7)]
       [(equal? input #\8)     (token 'digit #\8)]
       [(equal? input #\9)     (token 'digit #\9)]
-      [else (error "Invalid input. No such token exists")])))
+      [(equal? input eof)     (token 'eof eof)]
+      ;[else ]
+      )))
       
 
 ; string -> 0 argument function that returns the next token on the string
@@ -55,4 +64,4 @@
 ; (() -> token) -> (ast-node | ast-expr-node)
 ; the parser takes a function (probably produced by lexstr) that
 ; lexes the contents of the input stream
-;;(define (parser lex) ... )
+;(define (parser lex) ... )
