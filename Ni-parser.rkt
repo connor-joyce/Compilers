@@ -74,6 +74,13 @@
      ;;how to 
      [(NI type-id ID IS expression)   (VarDecl $2 $3 $5)]
      [(NI ID IS expression)           (VarDecl #f $2 $4)]
+     ;;need to go down in the grammar
+     ;;but also need to know which kind of type-dec
+     ;;is being done
+
+     ;;THIS IS CORRECT
+     ;;return the struct type lower in the grammar
+     ;;need to pass the name through tho
      [(DEFINE ID KIND AS ty)          $5]
      ;;
      [(NUM)                           (NumExpr $1)]
@@ -81,7 +88,11 @@
      ;;Boolean literal struct needed?
      [(BOOL)                          (Bool $1)])
     (ty
-     [(type-id)                       $1])
+     [(type-id)                       $1]
+     [(LBRACE typefields RBRACE)      $2]
+     [(ARRAY OF type-id)              $3])
+    (typefields
+     [(type-id ID)                   (RecordType ???
     (type-id
      [(ID)                            $1]))))
 
