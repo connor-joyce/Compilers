@@ -74,22 +74,20 @@
      ;;how to 
      [(NI type-id ID IS expression)   (VarDecl $2 $3 $5)]
      [(NI ID IS expression)           (VarDecl #f $2 $4)]
-     ;;need to go down in the grammar
-     ;;but also need to know which kind of type-dec
-     ;;is being done
 
-     ;;return the struct type lower in the grammar
-     ;;need to pass the name through tho
-     [(DEFINE ty)          $2]
-     ;;
      [(NUM)                           (NumExpr $1)]
      [(STRING)                        (StringExpr $1)]
      ;;Boolean literal struct needed?
-     [(BOOL)                          (Bool $1)])
+     [(BOOL)                          (Bool $1)]
+     [(DEFINE ty)          $2])
     (ty
-     [(ID KIND AS type-id)                       (NameType $1 $4 '())]
-     [(ID KIND AS LBRACE typefields RBRACE)      (RecordType $1 $5 '())]
-     [(ID KIND AS ARRAY OF type-id)              (ArrayType $1 $6 '())])
+     [(ID KIND AS type-id)                                    (NameType $1 $4 '())]
+     [(ID KIND AS LBRACE typefields RBRACE)                   (RecordType $1 $5 '())]
+     [(ID KIND AS ARRAY OF type-id)                           (ArrayType $1 $6 '())]
+     ;;mutually recursive type decs
+     [(ID KIND AS type-id AND DEFINE ty)                       (NameType $1 $4 $7)]
+     [(ID KIND AS LBRACE typefields RBRACE AND DEFINE ty)      (RecordType $1 $5 $9)]
+     [(ID KIND AS ARRAY OF type-id AND DEFINE ty)              (ArrayType $1 $6 $9)])
     (typefields
      [(type-id ID)                   (cons (TypeField $1 $2) '())]
      [(type-id ID COMMA typefields)  (cons (TypeField $1 $2) $4)])
