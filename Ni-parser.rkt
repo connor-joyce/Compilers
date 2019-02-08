@@ -2,7 +2,7 @@
 
 (require parser-tools/yacc
          (prefix-in lex: parser-tools/lex)
-         "Ni-lexer.rkt")
+         "Ni-Lexer.rkt")
 
 (provide (all-defined-out))
 
@@ -74,7 +74,7 @@
      ;;how to 
      [(NI type-id ID IS expression)   (VarDecl $2 $3 $5)]
      [(NI ID IS expression)           (VarDecl #f $2 $4)]
-     [(DEFINE ID KIND AS ty)          $2]
+     [(DEFINE ID KIND AS ty)          $5]
      ;;
      [(NUM)                           (NumExpr $1)]
      [(STRING)                        (StringExpr $1)]
