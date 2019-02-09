@@ -82,7 +82,10 @@
      [(BOOL)                                                                              (Bool $1)]
      [(DEFINE ty)                                                                         $2]
      [(func-dec)                                                                          $1]
-     [(ID LBRACE assignment RBRACE)            (NewRecordExpr $1 $3)])
+     [(ID LBRACE assignment RBRACE)                                                       (NewRecordExpr $1 $3)]
+        ;;pretty sure assignment causes shift/reduce conflict because it could be infinite recursion
+     [(assignment)                                                                        $1]
+     [(WHILE expression DO expression END)                                                (WhileExpr $2 $4)])
     (ty
      [(ID KIND AS type-id)                                                                (NameType $1 $4 '())]
      [(ID KIND AS LBRACE typefields RBRACE)                                               (RecordType $1 $5 '())]
@@ -93,6 +96,8 @@
      [(ID KIND AS ARRAY OF type-id AND DEFINE ty)                                         (ArrayType $1 $6 $9)])
     (func-dec
      ;;mutually recursive function decs (causing shift/reduce errors but don't know how to fix)
+     ;;could be because it could cause infinite recursion. Once everything works try making the func-dec and mut-func-dec
+     ;;fields different, that limits the recursion to once. 
      [(NEEWOM ID LPAREN typefields RPAREN IS expression AND func-dec)                     (FunDecl $2 $4 '() $7 $9)]         
      [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression AND func-dec)          (FunDecl $2 $4 $7 $9 $11)]
      ;;non-recursive function decs
