@@ -2,7 +2,7 @@
 
 (require parser-tools/yacc
          (prefix-in lex: parser-tools/lex)
-         "Ni-Lexer.rkt")
+         "Ni-lexer.rkt")
 
 (provide (all-defined-out))
 
@@ -72,27 +72,37 @@
     (expression
      ;pretty sure declarations aren't expressions but dont' know
      ;;how to 
-     [(NI type-id ID IS expression)   (VarDecl $2 $3 $5)]
-     [(NI ID IS expression)           (VarDecl #f $2 $4)]
-
-     [(NUM)                           (NumExpr $1)]
-     [(STRING)                        (StringExpr $1)]
+     [(NI type-id ID IS expression)                                                       (VarDecl $2 $3 $5)]
+     [(NI ID IS expression)                                                               (VarDecl #f $2 $4)]
+     [(IF expression THEN expression END)                                                 (IfExpr $2 $4 '())]
+     [(IF expression THEN expression ELSE expression END)                                 (IfExpr $2 $4 $6)]
+     [(NUM)                                                                               (NumExpr $1)]
+     [(STRING)                                                                            (StringExpr $1)]
      ;;Boolean literal struct needed?
-     [(BOOL)                          (Bool $1)]
-     [(DEFINE ty)          $2])
+     [(BOOL)                                                                              (Bool $1)]
+     [(DEFINE ty)                                                                         $2]
+     [(func-dec)                                                                          $1])
     (ty
-     [(ID KIND AS type-id)                                    (NameType $1 $4 '())]
-     [(ID KIND AS LBRACE typefields RBRACE)                   (RecordType $1 $5 '())]
-     [(ID KIND AS ARRAY OF type-id)                           (ArrayType $1 $6 '())]
+     [(ID KIND AS type-id)                                                                (NameType $1 $4 '())]
+     [(ID KIND AS LBRACE typefields RBRACE)                                               (RecordType $1 $5 '())]
+     [(ID KIND AS ARRAY OF type-id)                                                       (ArrayType $1 $6 '())]
      ;;mutually recursive type decs
-     [(ID KIND AS type-id AND DEFINE ty)                       (NameType $1 $4 $7)]
-     [(ID KIND AS LBRACE typefields RBRACE AND DEFINE ty)      (RecordType $1 $5 $9)]
-     [(ID KIND AS ARRAY OF type-id AND DEFINE ty)              (ArrayType $1 $6 $9)])
+     [(ID KIND AS type-id AND DEFINE ty)                                                  (NameType $1 $4 $7)]
+     [(ID KIND AS LBRACE typefields RBRACE AND DEFINE ty)                                 (RecordType $1 $5 $9)]
+     [(ID KIND AS ARRAY OF type-id AND DEFINE ty)                                         (ArrayType $1 $6 $9)])
+    (func-dec
+     ;;mutually recursive function decs (causing shift/reduce errors but don't know how to fix)
+     [(NEEWOM ID LPAREN typefields RPAREN IS expression AND func-dec)                     (FunDecl $2 $4 '() $7 $9)]         
+     [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression AND func-dec)          (FunDecl $2 $4 $7 $9 $11)]
+     ;;non-recursive function decs
+     [(NEEWOM ID LPAREN typefields RPAREN IS expression)                                  (FunDecl $2 $4 '() $7 '())]         
+     [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression)                       (FunDecl $2 $4 $7 $9 '())])
     (typefields
-     [(type-id ID)                   (cons (TypeField $1 $2) '())]
-     [(type-id ID COMMA typefields)  (cons (TypeField $1 $2) $4)])
+     [(type-id ID)                                                                        (cons (TypeField $1 $2) '())]
+     [(type-id ID COMMA typefields)                                                       (cons (TypeField $1 $2) $4)]
+     [()                                                                                  '()])
     (type-id
-     [(ID)                            $1]))))
+     [(ID)                                                                                $1]))))
 
 
 
