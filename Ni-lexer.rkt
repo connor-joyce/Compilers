@@ -21,7 +21,7 @@
  JUNIPER KIND LET NEEWOM NI NOW OF PENG THEN
  TO WHILE WITH))
 
-(define-empty-tokens endoffile (EOF))
+(define-empty-tokens endoffile (EOF EPSILON))
 
 (define nilexer
   (lexer-src-pos
@@ -174,4 +174,4 @@ there */") '())
 (check-expect (lexstr "\"\\\\\"a\"\"") (list (token-STRING "\"\\\\\"") (token-ID "a") (token-STRING "\"\"")))
 (check-expect (lexstr "\"you had me at \\\"hello\\\"\"") (list (token-STRING "\"you had me at \\\"hello\\\"\"")))
 
-(test)
+;(test)
