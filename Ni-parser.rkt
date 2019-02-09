@@ -71,7 +71,7 @@
 
     (expression
      ;pretty sure declarations aren't expressions but dont' know
-     ;;how to 
+     ;;what they would be if not expressions 
      [(NI type-id ID IS expression)                                                       (VarDecl $2 $3 $5)]
      [(NI ID IS expression)                                                               (VarDecl #f $2 $4)]
      [(IF expression THEN expression END)                                                 (IfExpr $2 $4 '())]
@@ -81,7 +81,8 @@
      ;;Boolean literal struct needed?
      [(BOOL)                                                                              (Bool $1)]
      [(DEFINE ty)                                                                         $2]
-     [(func-dec)                                                                          $1])
+     [(func-dec)                                                                          $1]
+     [(ID LBRACE assignment RBRACE)            (NewRecordExpr $1)
     (ty
      [(ID KIND AS type-id)                                                                (NameType $1 $4 '())]
      [(ID KIND AS LBRACE typefields RBRACE)                                               (RecordType $1 $5 '())]
@@ -105,10 +106,5 @@
      [(ID)                                                                                $1]))))
 
 
-
-     
-     
-     
-   
    
 
