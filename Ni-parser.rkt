@@ -82,7 +82,7 @@
      [(BOOL)                                                                              (Bool $1)]
      [(DEFINE ty)                                                                         $2]
      [(func-dec)                                                                          $1]
-     [(ID LBRACE assignment RBRACE)            (NewRecordExpr $1)
+     [(ID LBRACE assignment RBRACE)            (NewRecordExpr $1 $3)])
     (ty
      [(ID KIND AS type-id)                                                                (NameType $1 $4 '())]
      [(ID KIND AS LBRACE typefields RBRACE)                                               (RecordType $1 $5 '())]
@@ -103,7 +103,10 @@
      [(type-id ID COMMA typefields)                                                       (cons (TypeField $1 $2) $4)]
      [()                                                                                  '()])
     (type-id
-     [(ID)                                                                                $1]))))
+     [(ID)                                                                                $1])
+    (assignment
+     [(ID IS expression)                                                                   (cons (FieldAssign $1 $3) '())]
+     [(ID IS expression COMMA assignment)                                                  (cons (FieldAssign $1 $3) $5)]))))
 
 
    
