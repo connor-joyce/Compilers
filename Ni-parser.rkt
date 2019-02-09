@@ -78,6 +78,8 @@
      [(IF expression THEN expression ELSE expression END)                                 (IfExpr $2 $4 $6)]
      [(NUM)                                                                               (NumExpr $1)]
      [(STRING)                                                                            (StringExpr $1)]
+     [(expression BOOLAND expression)                                                     (BoolExpr $1 #\& $3)]
+     [(expression BOOLOR expression)                                                      (BoolExpr $1 #\| $3)]
      ;;Boolean literal struct needed?
      [(BOOL)                                                                              (Bool $1)]
      [(DEFINE ty)                                                                         $2]
