@@ -15,7 +15,7 @@
 (struct FunDecl (name args rettype body next) #:transparent)
 (struct NumExpr (val) #:transparent)
 (struct VarExpr (name) #:transparent)
-(struct Bool (val) #:transparent)
+(struct BoolVal (val) #:transparent)
 ;;
 (struct RecordExpr (name field) #:transparent)
 (struct ArrayExpr (name expr) #:transparent)
@@ -97,8 +97,7 @@
      [(var-dec)                                                                           $1]
 
      [(LET var-dec IN expression END)                                                     (LetExpr $2 $4)]
-     ;;array expression struct doesn't have a spot for length/init value
-     ;;I decided to keep the length
+     ;;this doesn't work, new array expression causes problems. 
      [(type-id LBRACKET expression RBRACKET OF expression)                                (NewArrayExpr $1 $3 $6)]
      [(ID LBRACE field-assignment RBRACE)                                                 (NewRecordExpr $1 $3)]
 
@@ -113,7 +112,7 @@
      [(NUM)                                                                               (NumExpr $1)]
      [(STRING)                                                                            (StringExpr $1)]
      ;;Boolean literal struct needed?
-     [(BOOL)                                                                              (Bool $1)]
+     [(BOOL)                                                                              (BoolVal $1)]
 
      ;;Variable Assignment
      [(NOW l-value IS expression)                                                         (AssignmentExpr $2 $4)]
@@ -147,7 +146,8 @@
      [(expression MULT expression)                                                        (MathExpr $1 '* $3)]
      [(expression DIV expression)                                                         (MathExpr $1 '\ $3)]
      [(expression SUB expression)                                                         (MathExpr $1 '- $3)]
-     [(expression DOT expression)                                                         (MathExpr $1 #\. $3)])
+     [(expression DOT expression)                                                         (MathExpr $1 #\. $3)]
+     [(SUB expression)                                                                    (MathExpr 0 '- $2)])
 
     (bool-expr
      [(expression NE expression)                                                          (BoolExpr $1 'ne $3)]
@@ -200,6 +200,4 @@
      [(ID IS expression)                                                                   (cons (FieldAssign $1 $3) '())]
      [(ID IS expression COMMA field-assignment)                                            (cons (FieldAssign $1 $3) $5)]))))
 
-
-   
 
