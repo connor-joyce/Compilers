@@ -4,6 +4,8 @@
          (prefix-in lex: parser-tools/lex)
          "Ni-lexer.rkt")
 
+(require test-engine/racket-tests)
+
 (provide (all-defined-out))
 
 (struct VarDecl (type id expr) #:transparent)
@@ -11,7 +13,7 @@
 (struct NameType(name kind next) #:transparent)
 (struct RecordType (name fields next) #:transparent)
 (struct ArrayType (name kind next) #:transparent)
-(struct TypeField (kind name) #:transparent)
+(struct TypeField (name kind) #:transparent)
 (struct FunDecl (name args rettype body next) #:transparent)
 (struct NumExpr (val) #:transparent)
 (struct VarExpr (name) #:transparent)
@@ -66,7 +68,7 @@
 (define ni-parser
   (parser
   (src-pos)
-  (start expression)
+  (start program)
   (end EOF)
   (tokens value-tokens paren-types operators punctuation comparators boolops keywords endoffile)
    (error (lambda (tok-ok? tok-name tok-value start-pos end-pos)
@@ -75,9 +77,9 @@
                      (lex:position-line start-pos) (lex:position-col start-pos) tok-name tok-value tok-ok?))))
 
    ;;Think we need a precedence (left right etc)
-   ;;Also need a way to fix order of operations with parentheses
-   ;;List thing as well. 
    (grammar
+    (program
+     [(expression)       (list $1)])
     (expression
      ;;No Val
      [(LPAREN RPAREN)                                                                     (NoVal)]
@@ -88,17 +90,16 @@
 
      ;;should be legal to use an l-value as an expression
      
-     ;;This existing as an expression causes a reduce/reduce which causes an error when doing a new array expression
-     ;;the parser throws back the of token, and fails. 
      [(l-value)                                                                           $1]
      ;pretty sure declarations aren't expressions but dont' know
      ;;what they would be if not expressions
      ;;Variable declarations
      [(var-dec)                                                                           $1]
 
-     [(LET var-dec IN expression END)                                                     (LetExpr $2 $4)]
-     ;;this doesn't work, new array expression causes problems. 
-     [(type-id LBRACKET expression RBRACKET OF expression)                                (NewArrayExpr $1 $3 $6)]
+     ;;let expression can have any expressions, separated by commas
+     [(LET seq IN seq END)                                                            (LetExpr $2 $4)]
+     
+     [(ID LBRACKET expression RBRACKET OF expression)                                (NewArrayExpr $1 $3 $6)]
      [(ID LBRACE field-assignment RBRACE)                                                 (NewRecordExpr $1 $3)]
 
      ;;Math expression
@@ -147,7 +148,7 @@
      [(expression DIV expression)                                                         (MathExpr $1 '\ $3)]
      [(expression SUB expression)                                                         (MathExpr $1 '- $3)]
      [(expression DOT expression)                                                         (MathExpr $1 #\. $3)]
-     [(SUB expression)                                                                    (MathExpr 0 '- $2)])
+     [(SUB expression)                                                                    (MathExpr (NumExpr "0") '- $2)])
 
     (bool-expr
      [(expression NE expression)                                                          (BoolExpr $1 'ne $3)]
@@ -190,8 +191,8 @@
      [(NEEWOM ID LPAREN typefields RPAREN IS expression)                                  (FunDecl $2 $4 '() $7 '())]         
      [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression)                       (FunDecl $2 $4 $7 $9 '())])
     (typefields
-     [(type-id ID)                                                                        (cons (TypeField $1 $2) '())]
-     [(type-id ID COMMA typefields)                                                       (cons (TypeField $1 $2) $4)]
+     [(type-id ID)                                                                        (cons (TypeField $2 $1) '())]
+     [(type-id ID COMMA typefields)                                                       (cons (TypeField $2 $1) $4)]
      [()                                                                                  '()])
     (type-id
      ;;hopefully this will only be ids that already have a type associated with them
@@ -199,5 +200,49 @@
     (field-assignment
      [(ID IS expression)                                                                   (cons (FieldAssign $1 $3) '())]
      [(ID IS expression COMMA field-assignment)                                            (cons (FieldAssign $1 $3) $5)]))))
+
+
+
+; var declarations
+(check-expect (parse-str "ni x is 5") (list (VarDecl #f "x" (NumExpr "5"))))
+; type declarations
+(check-expect (parse-str "define int2 kind as int") (list (NameType "int2" "int" '())))
+(check-expect (parse-str "define intarr kind as array of int") (list (ArrayType "intarr" "int" '())))
+(check-expect (parse-str "define intrec kind as { int x }")
+              (list (RecordType "intrec" (list (TypeField "x" "int")) '())))
+; function declarations
+(check-expect (parse-str "neewom getX() as int is 5")
+              (list (FunDecl "getX" '() "int" (NumExpr "5") '())))
+; function calls of various sorts
+(check-expect (parse-str "add2(5)") (list (FuncallExpr "add2" (list (NumExpr "5")))))
+; parens
+(check-expect (parse-str "(5)") (list (NumExpr "5")))
+; various sequences
+(check-expect (parse-str "(6; 5)") (list (list (NumExpr "6") (NumExpr "5"))))
+; strings
+(check-expect (parse-str "\"Hello World\"") (list (StringExpr "\"Hello World\"")))
+; noval
+(check-expect (parse-str "()") (list (NoVal)))
+; let expressions
+(check-expect (parse-str "let ni x is 5 in x end")
+              (list (LetExpr (list (VarDecl #f "x" (NumExpr "5"))) (list (VarExpr "x")))))
+; math ops
+(check-expect (parse-str "1+2")
+              (list (MathExpr (NumExpr "1") '+ (NumExpr "2"))))
+; math ops using negated numbers
+(check-expect (parse-str "-5") (list (MathExpr (NumExpr "0") '- (NumExpr "5"))))
+
+; bool expressions
+(check-expect (parse-str "5=6") (list (BoolExpr (NumExpr "5") 'eq (NumExpr "6"))))
+
+; array creation
+(check-expect (parse-str "intarr[10] of 6")
+              (list (NewArrayExpr "intarr" (NumExpr "10") (NumExpr "6"))))
+
+; record expression
+(check-expect (parse-str "point { x is 6 }")
+              (list (NewRecordExpr "point" (list (FieldAssign "x" (NumExpr "6"))))))
+
+(test)
 
 
