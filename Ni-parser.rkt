@@ -82,7 +82,8 @@
      [(expression)       (list $1)])
     (expression
      ;;No Val
-     [(LPAREN RPAREN)                                                                     (NoVal)]
+     [(LPAREN RPAREN)                                                                      (NoVal)]
+     [()                                                                                  '()]
      ;;nests the expression inside parens, inside of the other math expression
      ;;I think this is correct OoP
      [(LPAREN expression RPAREN)                                                          $2]
@@ -95,12 +96,12 @@
      ;;what they would be if not expressions
      ;;Variable declarations
      [(var-dec)                                                                           $1]
-
      ;;let expression can have any expressions, separated by commas
-     [(LET seq IN seq END)                                                            (LetExpr $2 $4)]
+     [(LET let-dec IN LPAREN seq RPAREN END)                                              (LetExpr $2 $5)]
+     [(LET let-dec IN seq END)                                                            (LetExpr $2 $4)]
      
-     [(ID LBRACKET expression RBRACKET OF expression)                                (NewArrayExpr $1 $3 $6)]
-     [(ID LBRACE field-assignment RBRACE)                                                 (NewRecordExpr $1 $3)]
+     [(ID LBRACKET expression RBRACKET OF expression)                                     (NewArrayExpr $1 $3 $6)]
+     [(ID LBRACE field-assignment RBRACE)                                            (NewRecordExpr $1 $3)]
 
      ;;Math expression
      [(math-expr)                                                                         $1]
@@ -138,6 +139,11 @@
      ;;loops
      [(WHILE expression DO expression END)                                                (WhileExpr $2 $4)]
      [(WITH ID AS expression TO expression DO expression END)                             (WithExpr $2 $4 $6 $8)])
+    (let-dec
+     [(DEFINE ty let-dec)                                                                 (cons $2 $3)]
+     [(var-dec let-dec)                                                                   (cons $1 $2)]
+     [(func-dec let-dec)                                                                  (cons $1 $2)]
+     [()                                                                                  '()])
     (var-dec
      [(NI type-id ID IS expression)                                                       (VarDecl $2 $3 $5)]
      [(NI type-id ID IS PENG)                                                             (VarDecl $2 $3 'peng)]
@@ -166,7 +172,7 @@
     (l-value
      [(ID)                                                                                (VarExpr $1)]
      [(l-value DOT ID)                                                                    (RecordExpr $1 $3)]
-     [(l-value LBRACKET expression RBRACKET)                                              (ArrayExpr $1 $3)])
+     [(ID LBRACKET expression RBRACKET)                                                   (ArrayExpr $1 $3)])
     ;;sequences
     ;;returns a list of expressions (in their respective structs)
     (seq
