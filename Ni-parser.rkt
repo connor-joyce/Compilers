@@ -89,24 +89,25 @@
      [(NUM)                       (NumExpr $1)]
      [(STRING)                    (StringExpr $1)]
      [(BOOL)                      (BoolVal $1)]
+     [(SUB expression)                      (MathExpr (NumExpr "0") '- $2)]
+     [(ID LPAREN args RPAREN)               (FuncallExpr $1 $3)]
      [(expression mathop expression)  (MathExpr $1 $2 $3)]
      [(expression boolop expression)  (BoolExpr $1 $2 $3)]
      ;;boolops should also include string ops
      [(expression logicop expression) (LogicExpr $1 $2 $3)]
      [(type-dec)                            $1]
+     [(ID LBRACKET expression RBRACKET OF expression)     (NewArrayExpr $1 $3 $6)]
+     [(type-id LBRACE field-assn RBRACE)                  (NewRecordExpr $1 $3)]
      [(var-dec)                             $1]
      [(func-dec)                            $1]
-     [(ID LPAREN args RPAREN)               (FuncallExpr $1 $3)]
      [(NOW l-value IS expression)           (AssignmentExpr $2 $4)]
      [(if)                                  $1]
-     [(loops)                               $1]
-     ;This line causes an error with array expressions
-     [(ID LBRACKET expression RBRACKET OF expression)     (NewArrayExpr $1 $3 $6)]
-     [(type-id LBRACE field-assn RBRACE)                       (NewRecordExpr $1 $3)]
+     ;[(loops)                               $1]
+     [(WHILE expression DO expression END)   (WhileExpr $2 $4)]
+     [(WITH ID AS expression TO expression DO expression END) (WithExpr $2 $4 $6 $8)]
      [(BREAK)                               (BreakExpr)]
      [(LET decs IN seq END)                 (LetExpr $2 $4)]
-     [(LPAREN expression RPAREN)            $2]
-     [(SUB expression)                      (MathExpr (NumExpr "0") '- $2)])
+     [(LPAREN expression RPAREN)            $2])
      ;[()                                    '()])
 
     (args
@@ -169,12 +170,12 @@
      [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression AND func-dec) (FunDecl $2 $4 $7 $9 $11)])
 
     (if
-     [(IF expression THEN expression END)     (IfExpr $2 $4 '())]
-     [(IF expression THEN expression ELSE expression END) (IfExpr $2 $4 $6)])
+     [(IF expression THEN expression ELSE expression END) (IfExpr $2 $4 $6)]
+     [(IF expression THEN expression END)     (IfExpr $2 $4 '())])
 
-    (loops
-     [(WHILE expression DO expression END)   (WhileExpr $2 $4)]
-     [(WITH ID AS expression TO expression DO expression END) (WithExpr $2 $4 $6 $8)])
+    ;(loops
+     ;[(WHILE expression DO expression END)   (WhileExpr $2 $4)]
+     ;[(WITH ID AS expression TO expression DO expression END) (WithExpr $2 $4 $6 $8)])
 
     (type-id
      [(ID)                                   $1])
