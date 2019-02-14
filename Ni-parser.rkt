@@ -81,131 +81,112 @@
     (program
      [(expression)       (list $1)])
     (expression
-     ;;No Val
-     [(LPAREN RPAREN)                                                                      (NoVal)]
-     [()                                                                                  '()]
-     ;;nests the expression inside parens, inside of the other math expression
-     ;;I think this is correct OoP
-     [(LPAREN expression RPAREN)                                                          $2]
-     [(BREAK)                                                                             (BreakExpr)]
+     [(l-value)                   $1]
+    ; [(valueless-expr)            $1]
+     [(PENG)                      (PengExpr)]
+     [(LPAREN seq RPAREN)                       $2]
+     [(LPAREN RPAREN)             (NoVal)]
+     [(NUM)                       (NumExpr $1)]
+     [(STRING)                    (StringExpr $1)]
+     [(BOOL)                      (BoolVal $1)]
+     [(expression mathop expression)  (MathExpr $1 $2 $3)]
+     [(expression boolop expression)  (BoolExpr $1 $2 $3)]
+     ;;boolops should also include string ops
+     [(expression logicop expression) (LogicExpr $1 $2 $3)]
+     [(type-dec)                            $1]
+     [(var-dec)                             $1]
+     [(func-dec)                            $1]
+     [(ID LPAREN args RPAREN)               (FuncallExpr $1 $3)]
+     [(assignment)                          $1]
+     [(if)                                  $1]
+     [(loops)                               $1]
+     [(ID LBRACKET expression RBRACKET OF expression)     (NewArrayExpr $1 $3 $6)]
+     [(ID LBRACE field-assn RBRACE)                       (NewRecordExpr $1 $3)]
+     [(BREAK)                               (BreakExpr)]
+     [(LET decs IN seq END)                 (LetExpr $2 $4)]
+     [(LPAREN expression RPAREN)            $2]
+     [(SUB expression)                      (MathExpr (NumExpr "0") '- $2)])
 
-     ;;should be legal to use an l-value as an expression
-     
-     [(l-value)                                                                           $1]
-     ;pretty sure declarations aren't expressions but dont' know
-     ;;what they would be if not expressions
-     ;;Variable declarations
-     [(var-dec)                                                                           $1]
-     ;;let expression can have any expressions, separated by commas
-     [(LET let-dec IN LPAREN seq RPAREN END)                                              (LetExpr $2 $5)]
-     [(LET let-dec IN seq END)                                                            (LetExpr $2 $4)]
-     
-     [(ID LBRACKET expression RBRACKET OF expression)                                     (NewArrayExpr $1 $3 $6)]
-     [(ID LBRACE field-assignment RBRACE)                                            (NewRecordExpr $1 $3)]
-
-     ;;Math expression
-     [(math-expr)                                                                         $1]
-     
-     ;;If expressions
-     [(IF expression THEN expression END)                                                 (IfExpr $2 $4 '())]
-     [(IF expression THEN expression ELSE expression END)                                 (IfExpr $2 $4 $6)]
-     
-     ;;Literals
-     [(NUM)                                                                               (NumExpr $1)]
-     [(STRING)                                                                            (StringExpr $1)]
-     ;;Boolean literal struct needed?
-     [(BOOL)                                                                              (BoolVal $1)]
-
-     ;;Variable Assignment
-     [(NOW l-value IS expression)                                                         (AssignmentExpr $2 $4)]
-     [(NOW l-value IS PENG)                                                               (AssignmentExpr $2 (PengExpr))]
-
-     ;;logic expressions
-     [(expression BOOLAND expression)                                                     (LogicExpr $1 #\& $3)]
-     [(expression BOOLOR expression)                                                      (LogicExpr $1 #\| $3)]
-
-     ;;boolean expressions
-     [(bool-expr)                                                                         $1]
-
-     ;;Type definition
-     [(DEFINE ty)                                                                         $2]
-
-     ;;Function declarations and function calls
-     [(func-dec)                                                                          $1]
-     [(ID LPAREN args RPAREN)                                                             (FuncallExpr $1 $3)]
-     ;;sequence
-     [(LPAREN seq RPAREN)                                                                 $2]
-
-     ;;loops
-     [(WHILE expression DO expression END)                                                (WhileExpr $2 $4)]
-     [(WITH ID AS expression TO expression DO expression END)                             (WithExpr $2 $4 $6 $8)])
-    (let-dec
-     [(DEFINE ty let-dec)                                                                 (cons $2 $3)]
-     [(var-dec let-dec)                                                                   (cons $1 $2)]
-     [(func-dec let-dec)                                                                  (cons $1 $2)]
-     [()                                                                                  '()])
-    (var-dec
-     [(NI type-id ID IS expression)                                                       (VarDecl $2 $3 $5)]
-     [(NI type-id ID IS PENG)                                                             (VarDecl $2 $3 'peng)]
-     [(NI ID IS expression)                                                               (VarDecl #f $2 $4)])
-    (math-expr
-     [(expression ADD expression)                                                         (MathExpr $1 '+ $3)]
-     [(expression MULT expression)                                                        (MathExpr $1 '* $3)]
-     [(expression DIV expression)                                                         (MathExpr $1 '\ $3)]
-     [(expression SUB expression)                                                         (MathExpr $1 '- $3)]
-     [(expression DOT expression)                                                         (MathExpr $1 #\. $3)]
-     [(SUB expression)                                                                    (MathExpr (NumExpr "0") '- $2)])
-
-    (bool-expr
-     [(expression NE expression)                                                          (BoolExpr $1 'ne $3)]
-     [(expression EQ expression)                                                          (BoolExpr $1 'eq $3)]
-     [(expression LT expression)                                                          (BoolExpr $1 'lt $3)]
-     [(expression LE expression)                                                          (BoolExpr $1 'le $3)]
-     [(expression GT expression)                                                          (BoolExpr $1 'gt $3)]
-     [(expression GE expression)                                                          (BoolExpr $1 'ge $3)])
-    
-    ;;The format that function call arguments can take, returns a list of the values
     (args
-     [(expression COMMA args)                                                             (cons $1 $3)]
-     [(expression)                                                                        (cons $1 '())])
-    ;;l values
+     [(expression)                          (cons $1 '())]
+     [(expression COMMA expression)         (cons $1 $3)])
+
     (l-value
-     [(ID)                                                                                (VarExpr $1)]
-     [(l-value DOT ID)                                                                    (RecordExpr $1 $3)]
-     [(ID LBRACKET expression RBRACKET)                                                   (ArrayExpr $1 $3)])
-    ;;sequences
-    ;;returns a list of expressions (in their respective structs)
+     [(ID)                                  (VarExpr $1)]
+     [(l-value DOT ID)                      (RecordExpr $1 $3)]
+     [(l-value LBRACKET expression RBRACKET)(ArrayExpr $1 $3)])
+
     (seq
-     [(expression SEMI seq)                                                               (cons $1 $3)]
-     [(expression)                                                                        (cons $1 '())])
-    ;;types, include recursive/non-recursive type decs for Name, Record, Array
-    (ty
-     [(ID KIND AS type-id)                                                                (NameType $1 $4 '())]
-     [(ID KIND AS LBRACE typefields RBRACE)                                               (RecordType $1 $5 '())]
-     [(ID KIND AS ARRAY OF type-id)                                                       (ArrayType $1 $6 '())]
-     ;;mutually recursive type decs
-     [(ID KIND AS type-id AND DEFINE ty)                                                  (NameType $1 $4 $7)]
-     [(ID KIND AS LBRACE typefields RBRACE AND DEFINE ty)                                 (RecordType $1 $5 $9)]
-     [(ID KIND AS ARRAY OF type-id AND DEFINE ty)                                         (ArrayType $1 $6 $9)])
-    (func-dec
-     ;;mutually recursive function decs (causing shift/reduce errors but don't know how to fix)
-     ;;could be because it could cause infinite recursion. Once everything works try making the func-dec and mut-func-dec
-     ;;fields different, that limits the recursion to once. 
-     [(NEEWOM ID LPAREN typefields RPAREN IS expression AND func-dec)                     (FunDecl $2 $4 '() $7 $9)]         
-     [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression AND func-dec)          (FunDecl $2 $4 $7 $9 $11)]
-     ;;non-recursive function decs
-     [(NEEWOM ID LPAREN typefields RPAREN IS expression)                                  (FunDecl $2 $4 '() $7 '())]         
-     [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression)                       (FunDecl $2 $4 $7 $9 '())])
+     [(expression SEMI seq)           (cons $1 $3)]
+     [(expression)                           (cons $1 '())])
+
+    (mathop
+     [(ADD)                                   '+]
+     [(SUB)                                   '-]
+     [(MULT)                                  '*]
+     [(DIV)                                   '/])
+
+    (boolop
+     [(EQ)                                    'eq]
+     [(NE)                                    'ne]
+     [(GT)                                    'gt]
+     [(LT)                                    'lt]
+     [(LE)                                    'le]
+     [(GE)                                    'ge])
+
+    (logicop
+     [(BOOLAND)                                   '&]
+     ;;cant make a symbol out of the pipe for some reason
+     [(BOOLOR)                                    #\|])
+
+    (type-dec
+     [(DEFINE ID KIND AS LBRACE typefields RBRACE) (RecordType $2 $6 '())]
+     [(DEFINE ID KIND AS ARRAY OF type-id)         (ArrayType $2 $7 '())]
+     [(DEFINE ID KIND AS LBRACE typefields RBRACE AND type-dec) (RecordType $2 $6 $9)]
+     [(DEFINE ID KIND AS ARRAY OF type-id AND type-dec) (ArrayType $2 $7 $9)]
+     [(DEFINE ID KIND AS type-id)                       (NameType $2 $5 '())]
+     [(DEFINE ID KIND AS type-id AND type-dec)          (NameType $2 $5 $7)])
+
     (typefields
-     [(type-id ID)                                                                        (cons (TypeField $2 $1) '())]
-     [(type-id ID COMMA typefields)                                                       (cons (TypeField $2 $1) $4)]
-     [()                                                                                  '()])
+     [(type-id ID)                                 (cons (TypeField $2 $1) '())]
+     [(type-id ID COMMA typefields)                (cons (TypeField $2 $1) $4)]
+     [()                                                      '()])
+
+    (var-dec
+     [(NI ID IS expression)                   (VarDecl #f $2 $4)]
+     [(NI type-id ID IS expression)           (VarDecl $2 $3 $5)])
+
+    (func-dec
+     [(NEEWOM ID LPAREN typefields RPAREN IS expression)  (FunDecl $2 $4 #f $7 '())]
+     [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression) (FunDecl $2 $4 $7 $9 '())]
+     [(NEEWOM ID LPAREN typefields RPAREN IS expression AND func-dec) (FunDecl $2 $4 #f $7 $9)]
+     [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression AND func-dec) (FunDecl $2 $4 $7 $9 $11)])
+
+    (assignment
+     [(NOW l-value IS expression)             (AssignmentExpr $2 $4)])
+
+    (if
+     [(IF expression THEN expression END)     (IfExpr $2 $4 '())]
+     [(IF expression THEN expression ELSE expression END) (IfExpr $2 $4 $6)])
+
+    (loops
+     [(WHILE expression DO expression END)   (WhileExpr $2 $4)]
+     [(WITH ID AS expression TO expression DO expression END) (WithExpr $2 $4 $6 $8)])
+
     (type-id
-     ;;hopefully this will only be ids that already have a type associated with them
-     [(ID)                                                                                $1])
-    (field-assignment
-     [(ID IS expression)                                                                   (cons (FieldAssign $1 $3) '())]
-     [(ID IS expression COMMA field-assignment)                                            (cons (FieldAssign $1 $3) $5)]))))
+     [(ID)                                   $1])
+
+    (decs
+     [(var-dec)                             (cons $1 '())]
+     [(func-dec)                            (cons $1 '())]
+     [(var-dec decs)                        (cons $1 $2)]
+     [(func-dec decs)                       (cons $1 $2)])
+    (field-assn
+     [(ID IS expression)                (cons (FieldAssign $1 $3) '())]
+     [(ID IS expression COMMA field-assn) (cons (FieldAssign $1 $3) $5)]
+     [()                                 '()]))))
+    
+     
 
 
 
