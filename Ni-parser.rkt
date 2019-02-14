@@ -81,7 +81,7 @@
     (program
      [(expression)       (list $1)])
     (expression
-     [(l-value)                   $1]
+     [(l-value)                    $1]
     ; [(valueless-expr)            $1]
      [(PENG)                      (PengExpr)]
      [(LPAREN seq RPAREN)                       $2]
@@ -97,27 +97,33 @@
      [(var-dec)                             $1]
      [(func-dec)                            $1]
      [(ID LPAREN args RPAREN)               (FuncallExpr $1 $3)]
-     [(assignment)                          $1]
+     [(NOW l-value IS expression)           (AssignmentExpr $2 $4)]
      [(if)                                  $1]
      [(loops)                               $1]
+     ;This line causes an error with array expressions
      [(ID LBRACKET expression RBRACKET OF expression)     (NewArrayExpr $1 $3 $6)]
-     [(ID LBRACE field-assn RBRACE)                       (NewRecordExpr $1 $3)]
+     [(type-id LBRACE field-assn RBRACE)                       (NewRecordExpr $1 $3)]
      [(BREAK)                               (BreakExpr)]
      [(LET decs IN seq END)                 (LetExpr $2 $4)]
      [(LPAREN expression RPAREN)            $2]
      [(SUB expression)                      (MathExpr (NumExpr "0") '- $2)])
+     ;[()                                    '()])
 
     (args
+     [()                                    '()]
      [(expression)                          (cons $1 '())]
-     [(expression COMMA expression)         (cons $1 $3)])
+     [(expression COMMA args)         (cons $1 $3)])
 
     (l-value
-     [(ID)                                  (VarExpr $1)]
      [(l-value DOT ID)                      (RecordExpr $1 $3)]
-     [(l-value LBRACKET expression RBRACKET)(ArrayExpr $1 $3)])
+     ;;Changing l-value to ID fixes the error but isn't correct
+     ;[(l-value LBRACKET expression RBRACKET)(ArrayExpr $1 $3)]
+     [(ID LBRACKET expression RBRACKET)     (ArrayExpr $1 $3)]
+     [(ID)                                  (VarExpr $1)])
 
     (seq
-     [(expression SEMI seq)           (cons $1 $3)]
+     [()                                     '()]    
+     [(expression SEMI seq)                  (cons $1 $3)]
      [(expression)                           (cons $1 '())])
 
     (mathop
@@ -162,9 +168,6 @@
      [(NEEWOM ID LPAREN typefields RPAREN IS expression AND func-dec) (FunDecl $2 $4 #f $7 $9)]
      [(NEEWOM ID LPAREN typefields RPAREN AS type-id IS expression AND func-dec) (FunDecl $2 $4 $7 $9 $11)])
 
-    (assignment
-     [(NOW l-value IS expression)             (AssignmentExpr $2 $4)])
-
     (if
      [(IF expression THEN expression END)     (IfExpr $2 $4 '())]
      [(IF expression THEN expression ELSE expression END) (IfExpr $2 $4 $6)])
@@ -179,6 +182,8 @@
     (decs
      [(var-dec)                             (cons $1 '())]
      [(func-dec)                            (cons $1 '())]
+     [(type-dec)                            (cons $1 '())]
+     [(type-dec decs)                       (cons $1 $2)]
      [(var-dec decs)                        (cons $1 $2)]
      [(func-dec decs)                       (cons $1 $2)])
     (field-assn
