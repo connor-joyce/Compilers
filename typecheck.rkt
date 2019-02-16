@@ -11,13 +11,15 @@
     (extend-env tenv 'int (types:make-IntType))
     (extend-env tenv 'bool (types:make-BoolType))
     (extend-env tenv 'string (types:make-StringType))
-    ;(extend-env tenv 'void (types:make-VoidType)) ;;Jeff's not sure about this one, but I am
+    (extend-env tenv 'x (types:make-IntType))
+    (extend-env tenv 'void (types:make-VoidType))
     (extend-env tenv 'peng (types:make-PengType))))
 
 (define typeEnv (make-parameter (init-typeEnv)))
 
 (define (init-typechecker)
   (typeEnv (init-typeEnv)))
+
 
 (define (tc-str str)
   (init-typechecker)
@@ -29,16 +31,40 @@
 
 (define (typecheck ast env)
   (let ([type-of-expr
-         (match ast
+         (match ast  
            [(NumExpr _)               (types:make-IntType)]
            [(StringExpr _)            (types:make-StringType)]
            [(BoolVal _)               (types:make-BoolType)]
            [(PengExpr)                (types:make-PengType)]
+           [(VarDecl type name expr)    (let ([t1 (if (equal? type #f) #f (apply-env env (string->symbol type)))]
+                                              [t2 (typecheck expr env)])
+                                               (cond [(equal? t1 t2)   (types:make-VarValue t1)]
+                                                     [(and (not (equal? t2 types:PengType)) (equal? type #f))  (types:make-VarValue t2)]
+                                                     [else (error "Declared type: "t1" and given value type: "t2" must be the same\n")]))]
+           [(VarExpr name)                (apply-env env (string->symbol name))]
+           [(TypeField _ typ)             (typecheck typ env)]
+           [(ArrayExpr name index)   (let ([t1 (typecheck index env)]
+                                           [t2 (apply-env env (string->symbol name))])
+                                       (cond
+                                         [(types:IntType? t1)        t2]
+                                         [else                      (error "Index value must be of NumType")]))]
+           [(NoVal)                  (types:make-VoidType)]
+           [(BoolExpr e1 op e2)      (let ([t1 (typecheck e1 env)]
+                                           [t2 (typecheck e2 env)])
+                                       (cond [(equal? t1 t2) (types:make-BoolType)]
+                                             [else (error "Both expressions in a boolean comparison must be the same type")]))]
            [(MathExpr e1 op e2)
                              (let ([t1 (typecheck e1 env)]
                                    [t2 (typecheck e2 env)])
-                               (cond [(and (types:IntType? t1) (types:IntType? t2))      (types:make-IntType)]))]
-           [(NewArrayExpr name num-elements init-val)     (let*
+                               (cond [(and (types:IntType? t1) (types:IntType? t2))      (types:make-IntType)]
+                                     [else (error "Both expressions need to be Number expressions in a math expression")]))]
+           [(LogicExpr e1 op e2) 
+                                       (let ([t1 (typecheck e1 env)]
+                                             [t2 (typecheck e2 env)])
+                                         (cond [(and (types:BoolType? t1) (types:BoolType? t2)) (types:make-BoolType)]
+                                               [else (error "Both expressions in a logic expression must be boolean expressions")]))]
+           
+           #;[(NewArrayExpr name num-elements init-val)     (let*
                                                                 ([arrty (types:actual-type (apply-env typeEnv name))]
                                                                  [countty (types:actual-type (typecheck num-elements typeEnv))]
                                                                  [initty (types:actual-type (typecheck init-val typeEnv))])
