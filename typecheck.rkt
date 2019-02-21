@@ -57,6 +57,14 @@
                                        (cond
                                          [(not (types:BoolType? test-t))   (error "Predicate must be bool type, actual type " test-t)]
                                          [else (typecheck body env)]))]
+           ;;Not sure if the scope persists across multiple recursions/function calls
+           [(WithExpr id val test body)  (let* ([val-t (typecheck val env)]
+                                                [new-env (extend-env (push-scope env) id val-t)]
+                                               [test-t (typecheck test new-env)]
+                                               [body-t (typecheck body new-env)])
+                                           (cond
+                                             [(and (equal? types:IntType? (not (equal? val-t test-t)))) (error "Value and condition must be num type" val-t test-t)]
+                                             [else (pop-scope new-env) body-t]))]
            [(ArrayExpr name index)   (let ([t1 (typecheck index env)]
                                            [t2 (apply-env env (string->symbol name))])
                                        (cond
