@@ -59,11 +59,12 @@
                                          [else (typecheck body env)]))]
            ;;Not sure if the scope persists across multiple recursions/function calls
            [(WithExpr id val test body)  (let* ([val-t (typecheck val env)]
-                                                [new-env (extend-env (push-scope env) id val-t)]
+                                                [new-env (extend-env (push-scope env) (string->symbol id) val-t)]
                                                [test-t (typecheck test new-env)]
                                                [body-t (typecheck body new-env)])
                                            (cond
-                                             [(and (equal? types:IntType? (not (equal? val-t test-t)))) (error "Value and condition must be num type" val-t test-t)]
+                                             [(equal? val-t test-t) (error "Value and condition must be same type" val-t test-t)]
+                                             [(equal? types:IntType val-t) (error "Value and condition must be num types" val-t test-t)]
                                              [else (pop-scope new-env) body-t]))]
            [(ArrayExpr name index)   (let ([t1 (typecheck index env)]
                                            [t2 (apply-env env (string->symbol name))])
@@ -109,6 +110,15 @@
                                                  [(not (eq? kind-type #f))     (extend-env env (string->symbol kind) kind-type)
                                                                                (if (eq? next '()) kind-type (next-type))]
                                                  [else (error "21 pilots")]))]
+
+           ;;We can't test this and we have no idea if it works
+           ;;We hope that the required errors are handled in the lower calls of typecheck and the environment persists
+           ;;Declarations aren't working so we can't test this
+           [(LetExpr decs exprs)            (let* ([new-env (push-scope env)]
+                                                   [decs-t (typecheck decs new-env)]
+                                                   [exprs-t (typecheck exprs new-env)])
+                                              exprs-t)]
+           
            [(FieldAssign name expr)          (let ([name-t (apply-env env (string->symbol name))]
                                                    [expr-t (typecheck expr env)])
                                                (cond
