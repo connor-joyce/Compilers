@@ -43,7 +43,8 @@
                                                      [else (error "Declared type: "t1" and given value type: "t2" must be the same\n")]))]
            [(VarExpr name)                (apply-env env (string->symbol name))]
            [(list)                      (printf "working")]
-           [(TypeField _ typ)             (typecheck typ env)]
+           ;;in theory typefield should check to make sure the typecheck happens properly before trying to extend env
+           [(TypeField name typ)        (extend-env env (string->symbol name) (typecheck typ env))]
            [(IfExpr test true false)  (let* ([test-t (typecheck test env)]
                                             [true-t (typecheck true env)]
                                             [false-t (if (eq? false '()) true-t (typecheck false env))])
@@ -100,6 +101,13 @@
                                                  [(not (eq? kind-type #f))     (extend-env env (string->symbol kind) kind-type)
                                                                                (if (eq? next '()) kind-type (next-type))]
                                                  [else (error "21 pilots")]))]
+           [(FieldAssign name expr)          (let ([name-t (apply-env env (string->symbol name))]
+                                                   [expr-t (typecheck expr env)])
+                                               (cond
+                                                 [(equal? name-t #f)      (error "l-value must be present in env")]
+                                                 [(not (equal? name-t expr-t))  (error "l-value and r-value must have same types" name-t expr-t)]
+                                                 ;;Don't think we need to extend environment, because the type remains the same
+                                                 [else expr-t]))]
            [(AssignmentExpr name expr)       (let* ([name-t (typecheck name env)]
                                                     [expr-t (typecheck expr env)])
                                                (cond
