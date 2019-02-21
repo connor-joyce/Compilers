@@ -108,12 +108,21 @@
                                                                   (begin (error "initialization value for array doesn't match type of array elements" ast)
                                                                          (types:make-VoidType))])
                                                                 arrty)]
-           [(NameType name kind next)        (let*   ([next-type (λ () (if (not (eq? next '())) (typecheck next env) #f))]
-                                                     [kind-type (apply-env env (string->symbol kind))])
-                                               (cond
-                                                 [(not (eq? kind-type #f))     (extend-env env (string->symbol kind) kind-type)
-                                                                               (if (eq? next '()) kind-type (next-type))]
-                                                 [else (error "21 pilots")]))]
+           
+           [(ArrayType name kind '())                     (let* ([kind-t (apply-env env (string->symbol kind))]
+                                                                 [l-exists? (apply-env env (string->symbol name))]
+                                                                 [arr-t (types:make-ArrayType '() kind-t)])
+                                                            (cond
+                                                              [l-exists?     (error "Identifier value already exists" name)]
+                                                              [else          (extend-env env (string->symbol name) arr-t) arr-t]))]
+
+           [(ArrayType name kind next)                   (let* ([next-t (typecheck next env)]
+                                                                [kind-t (apply-env env (string->symbol kind))]
+                                                                 [l-exists? (apply-env env (string->symbol name))]
+                                                                 [arr-t (types:make-ArrayType '() kind-t)])
+                                                            (cond
+                                                              [l-exists?     (error "Identifier value already exists" name)]
+                                                              [else          (extend-env env (string->symbol name) arr-t) next-t]))]
 
            ;;We can't test this and we have no idea if it works
            ;;We hope that the required errors are handled in the lower calls of typecheck and the environment persists
