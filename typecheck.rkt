@@ -100,6 +100,12 @@
                                                  [(not (eq? kind-type #f))     (extend-env env (string->symbol kind) kind-type)
                                                                                (if (eq? next '()) kind-type (next-type))]
                                                  [else (error "21 pilots")]))]
+           [(AssignmentExpr name expr)       (let* ([name-t (typecheck name env)]
+                                                    [expr-t (typecheck expr env)])
+                                               (cond
+                                                 [(equal? name-t #f) (error "l-value not declared" name)]
+                                                 [(not (equal? name-t expr-t)) (error "l-value and expression must be same type" name-t expr-t)]
+                                                 [else expr-t]))]
                                                    
            [_                      (error "Type check error")])])
     type-of-expr))
