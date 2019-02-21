@@ -1,0 +1,1 @@
+("7.0" ("fc2945d70b7d20a228e25e13c4bd468eb273fe57" . "f3ca598413d1d781c8f2e6ca18f512071b888a70") #"/home/connor/Compilers/Ni-lexer.rkt" (collects #"errortrace" #"errortrace-key.rkt") (collects #"parser-tools" #"lex.rkt") (collects #"parser-tools" #"yacc.rkt") (collects #"racket" #"main.rkt") (collects #"racket" #"runtime-config.rkt") (collects #"test-engine" #"racket-tests.rkt"))

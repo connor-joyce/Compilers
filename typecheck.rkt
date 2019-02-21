@@ -11,8 +11,8 @@
     (extend-env tenv 'int (types:make-IntType))
     (extend-env tenv 'bool (types:make-BoolType))
     (extend-env tenv 'string (types:make-StringType))
-    (extend-env tenv 'x (types:make-IntType))
-    (extend-env tenv 'void (types:make-VoidType))
+    (extend-env tenv 'x (types:make-IntType)) ;;Added this to test l-values
+    (extend-env tenv 'void (types:make-VoidType)) ;;Added this back in because NoVal's should return Void (I think)
     (extend-env tenv 'peng (types:make-PengType))))
 
 (define typeEnv (make-parameter (init-typeEnv)))
@@ -42,14 +42,27 @@
                                                      [(and (not (equal? t2 types:PengType)) (equal? type #f))  (types:make-VarValue t2)]
                                                      [else (error "Declared type: "t1" and given value type: "t2" must be the same\n")]))]
            [(VarExpr name)                (apply-env env (string->symbol name))]
+           [(list)                      (printf "working")]
            [(TypeField _ typ)             (typecheck typ env)]
+           [(IfExpr test true false)  (let* ([test-t (typecheck test env)]
+                                            [true-t (typecheck true env)]
+                                            [false-t (if (eq? false '()) true-t (typecheck false env))])
+                                        (cond
+                                          [(not (types:BoolType? test-t)) (error "Predicate must be bool type, actual type " test-t)]
+                                          [(not (equal? false-t true-t)) (error "Both branches must be same type")]
+                                          [else true-t]))]
+           [(WhileExpr test body)    (let ([test-t (typecheck test env)]
+                                           [body-t (typecheck body env)])
+                                       (cond
+                                         [(not (types:BoolType? test-t))   (error "Predicate must be bool type, actual type " test-t)]
+                                         [else (typecheck body env)]))]
            [(ArrayExpr name index)   (let ([t1 (typecheck index env)]
                                            [t2 (apply-env env (string->symbol name))])
                                        (cond
                                          [(types:IntType? t1)        t2]
                                          [else                      (error "Index value must be of NumType")]))]
            [(NoVal)                  (types:make-VoidType)]
-           [(Break)                  (types:make-VoidType)]
+           [(BreakExpr)              (types:make-VoidType)]
            [(BoolExpr e1 op e2)      (let ([t1 (typecheck e1 env)]
                                            [t2 (typecheck e2 env)])
                                        (cond [(equal? t1 t2) (types:make-BoolType)]
@@ -81,5 +94,12 @@
                                                                   (begin (error "initialization value for array doesn't match type of array elements" ast)
                                                                          (types:make-VoidType))])
                                                                 arrty)]
+           [(NameType name kind next)        (let*   ([next-type (λ () (if (not (eq? next '())) (typecheck next env) #f))]
+                                                     [kind-type (apply-env env (string->symbol kind))])
+                                               (cond
+                                                 [(not (eq? kind-type #f))     (extend-env env (string->symbol kind) kind-type)
+                                                                               (if (eq? next '()) kind-type (next-type))]
+                                                 [else (error "21 pilots")]))]
+                                                   
            [_                      (error "Type check error")])])
     type-of-expr))
