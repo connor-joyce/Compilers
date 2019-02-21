@@ -11,7 +11,8 @@
     (extend-env tenv 'int (types:make-IntType))
     (extend-env tenv 'bool (types:make-BoolType))
     (extend-env tenv 'string (types:make-StringType))
-    (extend-env tenv 'x (types:make-IntType)) ;;Added this to test l-values
+    (extend-env tenv 'x (types:make-IntType));;Added this to test l-values
+    (extend-env tenv 'foo (types:make-ArrayType 'intarr (types:make-StringType)))
     (extend-env tenv 'void (types:make-VoidType)) ;;Added this back in because NoVal's should return Void (I think)
     (extend-env tenv 'peng (types:make-PengType))))
 
@@ -66,10 +67,13 @@
                                              [(equal? val-t test-t) (error "Value and condition must be same type" val-t test-t)]
                                              [(equal? types:IntType val-t) (error "Value and condition must be num types" val-t test-t)]
                                              [else (pop-scope new-env) body-t]))]
-           [(ArrayExpr name index)   (let ([t1 (typecheck index env)]
-                                           [t2 (apply-env env (string->symbol name))])
+           ;;type of name is array type, but we need type of the given element
+           ;;which is the element-type of the array type
+           [(ArrayExpr name index)   (let* ([t1 (typecheck index env)]
+                                           [t2 (apply-env env (string->symbol name))]
+                                           [arr-type (types:ArrayType-element-type t2)])
                                        (cond
-                                         [(types:IntType? t1)        t2]
+                                         [(types:IntType? t1)        arr-type]
                                          [else                      (error "Index value must be of NumType")]))]
            [(NoVal)                  (types:make-VoidType)]
            [(BreakExpr)              (types:make-VoidType)]
