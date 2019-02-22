@@ -37,6 +37,11 @@
            ;;if the rest is empty-list then typecheck the first and exit
            ;;if the rest is not empty then typecheck the first and recursively type check the rest
            ;;return the last typechecked value
+           [(list TypeField ... _)  (let* ([fr (first ast)]
+                                             [rs (rest ast)])
+                                        (cond
+                                          [(equal? '() rs)          (cons (typecheck fr env) '())]
+                                          [else                     (cons (typecheck fr env) (typecheck rs env))]))]
            [(list _ ... _)    (let* ([fr (first ast)]
                                              [rs (rest ast)])
                                         (cond
@@ -56,7 +61,21 @@
            [(VarExpr name)                (apply-env env (string->symbol name))]
            ;[(list)                      (printf "working")]
            ;;in theory typefield should check to make sure the typecheck happens properly before trying to extend env
-           [(TypeField name typ)        (extend-env env (string->symbol name) (typecheck typ env))]
+           ;[(list (TypeField name typ) ... _)        (let* ([fr (first ast)]
+            ;                                                [rs (rest ast)]
+             ;                                               [sym (string->symbol name)]
+              ;                                              [name-t? (apply-env env sym)]
+               ;                                             [typ-t (typecheck typ env)])
+                ;                                       (cond
+                 ;                                        [(not(equal? name-t? #f)) (error "typefield already exists in environment" name)]
+                  ;                                       [(equal? rs '())         (extend-env sym typ-t) (cons (cons sym typ-t) '())]
+                   ;                                      [(not (equal? rs '()))   (extend-env sym typ-t) (cons (cons sym typ-t) (typecheck rs env))]))]
+           [(TypeField name typ)       (let* ([sym (string->symbol name)]
+                                              [name-t? (apply-env env sym)]
+                                              [typ-t (apply-env env (string->symbol typ))])
+                                         (cond
+                                           [(not (equal? #f name-t?))  (error "identifier already in environment" name)]
+                                           [else (extend-env env sym typ-t) (cons sym typ-t)]))]
            [(IfExpr test true false)  (let* ([test-t (typecheck test env)]
                                             [true-t (typecheck true env)]
                                             [false-t (if (eq? false '()) true-t (typecheck false env))])
@@ -185,6 +204,13 @@
                                                  [(equal? name-t #f) (error "l-value not declared" name)]
                                                  [(not (equal? name-t expr-t)) (error "l-value and expression must be same type" name-t expr-t)]
                                                  [else expr-t]))]
+           [(RecordType name fields '())    (let* ([new-env (push-scope env)]
+                                                   [name-t? (apply-env new-env (string->symbol name))]
+                                                   [field-t-list (typecheck fields new-env)]
+                                                   [rec-t (types:make-RecordType (string->symbol name) field-t-list)])
+                                              (cond
+                                                [(not(equal? name-t? #f))  (error "identifier already bound" name)]
+                                                [else (extend-env env (string->symbol name) rec-t) (pop-scope new-env) rec-t]))]
                                                    
            [_                      (error "Type check error")])])
     type-of-expr))
