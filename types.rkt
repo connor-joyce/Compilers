@@ -37,7 +37,7 @@
   #:methods gen:custom-write [(define write-proc (λ (ty port mode)
                                                   (write-string "t:peng" port)))])
 
-(struct NameType NiType (name) #:transparent
+(struct NameType NiType (name)#:transparent
   #:methods gen:custom-write [(define write-proc
                                 (λ (ty port mode)
                                   (let ([theprinter (case mode
@@ -54,7 +54,8 @@
                                            "actual" actual
                                            "name" name))]
               [else (values actual name)])))
-
+;;Chris doesn't store the name inside of the struct
+;;And I probably won't use the name field at all in implementation
 (struct ArrayType NiType (name element-type
                                [label #:mutable #:auto]) #:transparent
   #:auto-value #f
