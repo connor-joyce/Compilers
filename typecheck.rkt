@@ -14,7 +14,8 @@
     (extend-env tenv 'x (types:make-IntType));;Added this to test l-values
     (extend-env tenv 'foo (types:make-ArrayType 'intarr (types:make-IntType))) ;;Chris doesn't put name in the struct, idk if i need to or not
     (extend-env tenv 'void (types:make-VoidType)) ;;Added this back in because NoVal's should return Void (I think)
-    (extend-env tenv 'peng (types:make-PengType))))
+    (extend-env tenv 'peng (types:make-PengType))
+    (extend-env tenv 'reco (types:make-RecordType 'reco (list (cons 'a types:make-IntType) (cons 'b types:make-StringType))))))
 
 (define typeEnv (make-parameter (init-typeEnv)))
 
@@ -75,7 +76,7 @@
                                               [typ-t (apply-env env (string->symbol typ))])
                                          (cond
                                            [(not (equal? #f name-t?))  (error "identifier already in environment" name)]
-                                           [else (extend-env env sym typ-t) (cons sym typ-t)]))]
+                                           [else (extend-env env sym typ-t) (values sym typ-t)]))]
            [(IfExpr test true false)  (let* ([test-t (typecheck test env)]
                                             [true-t (typecheck true env)]
                                             [false-t (if (eq? false '()) true-t (typecheck false env))])
@@ -122,23 +123,6 @@
                                              [t2 (typecheck e2 env)])
                                          (cond [(and (types:BoolType? t1) (types:BoolType? t2)) (types:make-BoolType)]
                                                [else (error "Both expressions in a logic expression must be boolean expressions")]))]
-           
-           #;[(NewArrayExpr name num-elements init-val)     (let*
-                                                                ([arrty (types:actual-type (apply-env typeEnv name))]
-                                                                 [countty (types:actual-type (typecheck num-elements typeEnv))]
-                                                                 [initty (types:actual-type (typecheck init-val typeEnv))])
-                                                              (cond
-                                                                [(not (types:ArrayType? arrty))
-                                                                 ;;errors should be log-typeerror
-                                                                 (begin (error "~a must be an array type" ast name) (types:make-VoidType))]
-                                                                 [(not (types:IntType? countty))
-                                                                  (begin (error "number of elements in an array must be an int type" ast)
-                                                                         (types:make-VoidType))]
-                                                                 ;;types:type=? isn't defined yet, try to figure out this helper. 
-                                                                 [(not (types:type=? initty (types:ArrayType-element-type arrty)))
-                                                                  (begin (error "initialization value for array doesn't match type of array elements" ast)
-                                                                         (types:make-VoidType))])
-                                                                arrty)]
            
            [(ArrayType name kind '())                     (let* ([kind-t (apply-env env (string->symbol kind))]
                                                                  [l-exists? (apply-env env (string->symbol name))]
@@ -211,6 +195,18 @@
                                               (cond
                                                 [(not(equal? name-t? #f))  (error "identifier already bound" name)]
                                                 [else (extend-env env (string->symbol name) rec-t) (pop-scope new-env) rec-t]))]
+           [(RecordExpr name field)          (let* ([rec-t (typecheck name env)]
+                                                    [field-t (field-helper (string->symbol field) (types:RecordType-fields rec-t))])
+                                               (cond
+                                                 [(equal? rec-t #f)        (error "Record type does not exist" name)]
+                                                 [(equal? field-t #f)      (error "Field does not exist in record type" field)]
+                                                 [else                     field-t]))]
                                                    
            [_                      (error "Type check error")])])
     type-of-expr))
+
+(define (field-helper field field-list)
+  (cond
+    [(equal? field-list '())                       #f]
+    [(equal? field (car (car field-list)))     ((cdr (car field-list)))]
+    [else                                          (field-helper field (rest field-list))]))
