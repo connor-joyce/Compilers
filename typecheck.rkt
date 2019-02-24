@@ -15,7 +15,7 @@
     (extend-env tenv 'foo (types:make-ArrayType 'intarr (types:make-IntType))) ;;Chris doesn't put name in the struct, idk if i need to or not
     (extend-env tenv 'void (types:make-VoidType)) ;;Added this back in because NoVal's should return Void (I think)
     (extend-env tenv 'peng (types:make-PengType))
-    (extend-env tenv 'reco (types:make-RecordType 'reco (list (cons 'a types:make-IntType) (cons 'b types:make-StringType))))))
+    (extend-env tenv 'reco (types:make-RecordType 'reco (list (cons 'a (types:make-IntType)) (cons 'b (types:make-BoolType))))))) ;;added this to test records
 
 (define typeEnv (make-parameter (init-typeEnv)))
 
@@ -201,6 +201,11 @@
                                                  [(equal? rec-t #f)        (error "Record type does not exist" name)]
                                                  [(equal? field-t #f)      (error "Field does not exist in record type" field)]
                                                  [else                     field-t]))]
+
+           [(NewRecordExpr name assns)       (let* ([rec-t (apply-env env (string->symbol name))]
+                                                    [temp-env (begin (push-scope env) (type-field-env env (types:RecordType-fields rec-t)))]
+                                                    [assn-t (typecheck assns temp-env)])
+                                               (pop-scope env) rec-t)]
                                                    
            [_                      (error "Type check error")])])
     type-of-expr))
@@ -208,5 +213,10 @@
 (define (field-helper field field-list)
   (cond
     [(equal? field-list '())                       #f]
-    [(equal? field (car (car field-list)))     ((cdr (car field-list)))]
+    [(equal? field (car (car field-list)))         (cdr (car field-list))]
     [else                                          (field-helper field (rest field-list))]))
+
+(define (type-field-env env field-list)
+  (cond
+    [(equal? field-list '())        env]
+    [else (extend-env env (car (car field-list)) (cdr (car field-list))) (type-field-env env (cdr field-list))]))
