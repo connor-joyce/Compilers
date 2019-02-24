@@ -43,6 +43,7 @@
                                         (cond
                                           [(equal? '() rs)          (cons (typecheck fr env) '())]
                                           [else                     (cons (typecheck fr env) (typecheck rs env))]))]
+           ['()  '()]
            [(list _ ... _)    (let* ([fr (first ast)]
                                              [rs (rest ast)])
                                         (cond
@@ -72,11 +73,11 @@
                   ;                                       [(equal? rs '())         (extend-env sym typ-t) (cons (cons sym typ-t) '())]
                    ;                                      [(not (equal? rs '()))   (extend-env sym typ-t) (cons (cons sym typ-t) (typecheck rs env))]))]
            [(TypeField name typ)       (let* ([sym (string->symbol name)]
-                                              [name-t? (apply-env env sym)]
+                                              [name-t? (apply-env-scope env sym)] ;; don't care if the name exists in the environment
                                               [typ-t (apply-env env (string->symbol typ))])
                                          (cond
                                            [(not (equal? #f name-t?))  (error "identifier already in environment" name)]
-                                           [else (extend-env env sym typ-t) (values sym typ-t)]))]
+                                           [else (extend-env env sym typ-t)(cons sym typ-t)]))]
            [(IfExpr test true false)  (let* ([test-t (typecheck test env)]
                                             [true-t (typecheck true env)]
                                             [false-t (if (eq? false '()) true-t (typecheck false env))])
@@ -195,6 +196,15 @@
                                               (cond
                                                 [(not(equal? name-t? #f))  (error "identifier already bound" name)]
                                                 [else (extend-env env (string->symbol name) rec-t) (pop-scope new-env) rec-t]))]
+           [(RecordType name fields next)    (let* ([next-t (typecheck next env)]
+                                                    [new-env (push-scope env)]
+                                                   [name-t? (apply-env new-env (string->symbol name))]
+                                                   [field-t-list (typecheck fields new-env)]
+                                                   [rec-t (types:make-RecordType (string->symbol name) field-t-list)])
+                                              (cond
+                                                [(not(equal? name-t? #f))  (error "identifier already bound" name)]
+                                                [else (extend-env env (string->symbol name) rec-t) (pop-scope new-env) next-t]))]
+           
            [(RecordExpr name field)          (let* ([rec-t (typecheck name env)]
                                                     [field-t (field-helper (string->symbol field) (types:RecordType-fields rec-t))])
                                                (cond
@@ -206,10 +216,46 @@
                                                     [temp-env (begin (push-scope env) (type-field-env env (types:RecordType-fields rec-t)))]
                                                     [assn-t (typecheck assns temp-env)])
                                                (pop-scope env) rec-t)]
+
+           [(FunDecl name args rettype body '()) (let* ( [sym (string->symbol name)]
+                                                         [exists? (apply-env env sym)]
+                                                         [fun-env (push-scope env)]
+                                                         [args-list (typecheck args fun-env)]
+                                                         [body-type (typecheck body fun-env)]
+                                                         [ret-type (if (equal? rettype #f) body-type (apply-env env (string->symbol rettype)))]
+                                                         )
+                                                    (cond
+                                                      [(not (equal? exists? #f))   (error "Identifier already exists in the environment" sym)]
+                                                      [(not (equal? ret-type body-type)) (error "Body type and return type must match" body-type ret-type)]
+                                                      [else (push-scope env)(extend-env env sym (types:make-FunValue sym args-list ret-type)) ret-type]))]
+
+           [(FunDecl name args rettype body next) (let* ([next-type (typecheck next env)]
+                                                         [sym (string->symbol name)]
+                                                         [exists? (apply-env env sym)]
+                                                         [fun-env (push-scope env)]
+                                                         [args-list (typecheck args fun-env)]
+                                                         [body-type (typecheck body fun-env)]
+                                                         [ret-type (if (equal? rettype #f) body-type (apply-env env (string->symbol rettype)))]
+                                                         )
+                                                    (cond
+                                                      [(not (equal? exists? #f))   (error "Identifier already exists in the environment" sym)]
+                                                      [(not (equal? ret-type body-type)) (error "Body type and return type must match" body-type ret-type)]
+                                                      [else (push-scope env)(extend-env env 'sym (types:make-FunValue sym args-list ret-type)) next-type]))]
+           [(FuncallExpr name args)               (let* ([sym (string->symbol name)]
+                                                         [exists? (apply-env env sym)])
+                                                    (cond
+                                                      [(not exists?)    (error "function does not exist" sym)]
+                                                      [(not(check-args (types:FunValue-parameters exists?) args env))   (error "args do not typematch parameters")]
+                                                      [else (types:FunValue-return-type exists?)]))]
                                                    
-           [_                      (error "Type check error")])])
+           [_                      (error "Type check error" ast)])])
     type-of-expr))
 
+(define (check-args src check env)
+  (cond
+    [(and (equal? src '()) (equal? check '()))  #t]
+    [(equal? (cdr (car src)) (typecheck (first check) env)) (check-args (cdr src) (cdr check) env)]
+    [else #f]))
 (define (field-helper field field-list)
   (cond
     [(equal? field-list '())                       #f]
