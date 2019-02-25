@@ -111,6 +111,8 @@
 (struct FunValue (name parameters return-type [label #:mutable #:auto]
                        [frame #:mutable #:auto])
   #:transparent #:auto-value #f)
+(define (make-FunValue name params ret)
+  (FunValue name params ret))
 
 (define (make-ArrayType name etype)
   (ArrayType '() name etype))
