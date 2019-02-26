@@ -11,9 +11,9 @@
     (extend-env tenv 'int (types:make-IntType))
     (extend-env tenv 'bool (types:make-BoolType))
     (extend-env tenv 'string (types:make-StringType))
-    (extend-env tenv 'x (types:make-IntType)) ;;Added this to test l-values
     (extend-env tenv 'void (types:make-VoidType)) ;;Added this back in because NoVal's should return Void (I think)
     (extend-env tenv 'peng (types:make-PengType))))
+    
 
 (define typeEnv (make-parameter (init-typeEnv)))
 
@@ -31,20 +31,52 @@
 
 (define (typecheck ast env)
   (let ([type-of-expr
-         (match ast  
+         (match ast
+           ;;if ast is a list of anything then get the first and the rest
+           ;;if the rest is empty-list then typecheck the first and exit
+           ;;if the rest is not empty then typecheck the first and recursively type check the rest
+           ;;return the last typechecked value
+           ;['() (types:make-VoidType)]
+
+           ;;doing this separates the two list matches
+           ;;however it defaults to the sequence match on an empty list which causes problems
+
+           ;;now the program is trying to pull out the symbol of the void type, but it doesn't get saved properly because its not a field
+           ;;assign
+           ['()  (cons (types:make-VoidType) '())]
+           [(list (TypeField _ _) _ ...)  (let* ([fr (first ast)]
+                                           [rs (rest ast)])
+                                        (cond
+                                          [(equal? '() rs)          (cons (typecheck fr env) '())]
+                                          [else                     (cons (typecheck fr env) (typecheck rs env))]))]
+           
+           [(list _ ... _)    (let* ([fr (first ast)]
+                                     [rs (rest ast)])
+                                        (cond
+                                          [(equal? fr '())          (types:make-VoidType)]
+                                          [(equal? '() rs)          (typecheck fr env)]
+                                          [else                     (typecheck fr env) (typecheck rs env)]))]
            [(NumExpr _)               (types:make-IntType)]
            [(StringExpr _)            (types:make-StringType)]
            [(BoolVal _)               (types:make-BoolType)]
            [(PengExpr)                (types:make-PengType)]
-           [(VarDecl type name expr)    (let ([t1 (if (equal? type #f) #f (apply-env env (string->symbol type)))]
-                                              [t2 (typecheck expr env)])
-                                               (cond [(equal? t1 t2)   (types:make-VarValue t1)]
-                                                     [(and (not (equal? t2 types:PengType)) (equal? type #f))  (types:make-VarValue t2)]
+           ;;I don't think we save the var value, we just save the type of the var to teh environment
+           [(VarDecl type name expr)    (let* ([t2 (typecheck expr env)]
+                                              [t1 (if (equal? type #f) #f (apply-env env (string->symbol type)))]
+                                              [var-t t2])
+                                               (cond [(equal? t1 t2)   (extend-env env (string->symbol name) var-t) var-t]
+                                                     [(and (equal? t2 types:PengType) (not (equal? t1 #f))) (extend-env env (string->symbol name) types:PengType) types:PengType]
+                                                     [(and (not (equal? t2 types:PengType)) (not (equal? t1 #f))) (extend-env env (string->symbol name) t2) t2]
+                                                     [(and (not (equal? t2 types:PengType)) (equal? t1 #f)) (extend-env env (string->symbol name) t2) t2]
                                                      [else (error "Declared type: "t1" and given value type: "t2" must be the same\n")]))]
            [(VarExpr name)                (apply-env env (string->symbol name))]
-           [(list)                      (printf "working")]
-           ;;in theory typefield should check to make sure the typecheck happens properly before trying to extend env
-           [(TypeField name typ)        (extend-env env (string->symbol name) (typecheck typ env))]
+
+           [(TypeField name typ)       (let* ([sym (string->symbol name)]
+                                              [name-t? (apply-env-scope env sym)] ;; don't care if the name exists in the environment
+                                              [typ-t (apply-env env (string->symbol typ))])
+                                         (cond
+                                           [(not (equal? #f name-t?))  (error "identifier already in environment" name)]
+                                           [else (extend-env env sym typ-t)(cons sym typ-t)]))]
            [(IfExpr test true false)  (let* ([test-t (typecheck test env)]
                                             [true-t (typecheck true env)]
                                             [false-t (if (eq? false '()) true-t (typecheck false env))])
@@ -63,14 +95,18 @@
                                                [test-t (typecheck test new-env)]
                                                [body-t (typecheck body new-env)])
                                            (cond
-                                             [(equal? val-t test-t) (error "Value and condition must be same type" val-t test-t)]
-                                             [(equal? types:IntType val-t) (error "Value and condition must be num types" val-t test-t)]
+                                             [(not (equal? val-t test-t)) (error "Value and condition must be same type" val-t test-t)]
+                                             [(not (types:IntType? test-t)) (error "Value and condition must be num types" val-t test-t)]
                                              [else (pop-scope new-env) body-t]))]
-           [(ArrayExpr name index)   (let ([t1 (typecheck index env)]
-                                           [t2 (apply-env env (string->symbol name))])
+           ;;type of name is array type, but we need type of the given element
+           ;;which is the element-type of the array type
+           [(ArrayExpr name index)   (let*([t1 (typecheck index env)]
+                                           [t2 (apply-env env (string->symbol name))]
+                                           [e-type (types:ArrayType-element-type t2)])
                                        (cond
-                                         [(types:IntType? t1)        t2]
-                                         [else                      (error "Index value must be of NumType")]))]
+                                         [(equal? #f t2)             (error "unbound identifier" name)]
+                                         [(not (types:IntType? t1))  (error "Index value must be an int type" t1)]
+                                         [else        e-type]))]
            [(NoVal)                  (types:make-VoidType)]
            [(BreakExpr)              (types:make-VoidType)]
            [(BoolExpr e1 op e2)      (let ([t1 (typecheck e1 env)]
@@ -81,57 +117,165 @@
                              (let ([t1 (typecheck e1 env)]
                                    [t2 (typecheck e2 env)])
                                (cond [(and (types:IntType? t1) (types:IntType? t2))      (types:make-IntType)]
-                                     [else (error "Both expressions need to be Number expressions in a math expression")]))]
+                                     [else (error "Both expressions need to be Number expressions in a math expression" e1 op e2)]))]
            [(LogicExpr e1 op e2) 
                                        (let ([t1 (typecheck e1 env)]
                                              [t2 (typecheck e2 env)])
                                          (cond [(and (types:BoolType? t1) (types:BoolType? t2)) (types:make-BoolType)]
                                                [else (error "Both expressions in a logic expression must be boolean expressions")]))]
            
-           #;[(NewArrayExpr name num-elements init-val)     (let*
-                                                                ([arrty (types:actual-type (apply-env typeEnv name))]
-                                                                 [countty (types:actual-type (typecheck num-elements typeEnv))]
-                                                                 [initty (types:actual-type (typecheck init-val typeEnv))])
-                                                              (cond
-                                                                [(not (types:ArrayType? arrty))
-                                                                 ;;errors should be log-typeerror
-                                                                 (begin (error "~a must be an array type" ast name) (types:make-VoidType))]
-                                                                 [(not (types:IntType? countty))
-                                                                  (begin (error "number of elements in an array must be an int type" ast)
-                                                                         (types:make-VoidType))]
-                                                                 ;;types:type=? isn't defined yet, try to figure out this helper. 
-                                                                 [(not (types:type=? initty (types:ArrayType-element-type arrty)))
-                                                                  (begin (error "initialization value for array doesn't match type of array elements" ast)
-                                                                         (types:make-VoidType))])
-                                                                arrty)]
-           [(NameType name kind next)        (let*   ([next-type (λ () (if (not (eq? next '())) (typecheck next env) #f))]
-                                                     [kind-type (apply-env env (string->symbol kind))])
-                                               (cond
-                                                 [(not (eq? kind-type #f))     (extend-env env (string->symbol kind) kind-type)
-                                                                               (if (eq? next '()) kind-type (next-type))]
-                                                 [else (error "21 pilots")]))]
+           [(ArrayType name kind '())                     (let* ([kind-t (apply-env env (string->symbol kind))]
+                                                                 [l-exists? (apply-env env (string->symbol name))]
+                                                                 [arr-t (types:make-ArrayType '() kind-t)])
+                                                            (cond
+                                                              [(equal? #f kind-t)   (error "kind must be an existing type" kind)]
+                                                              [l-exists?     (error "Identifier value already exists" name)]
+                                                              [else          (extend-env env (string->symbol name) arr-t) arr-t]))]
+
+           [(ArrayType name kind next)                   (let* ([next-t (typecheck next env)]
+                                                                [kind-t (apply-env env (string->symbol kind))]
+                                                                 [l-exists? (apply-env env (string->symbol name))]
+                                                                 [arr-t (types:make-ArrayType '() kind-t)])
+                                                            (cond
+                                                              [(equal? #f kind-t)   (error "kind must be an existing type" kind)]
+                                                              [l-exists?     (error "Identifier value already exists" name)]
+                                                              [else          (extend-env env (string->symbol name) arr-t) next-t]))]
+
+           [(NameType name kind '())                   (let ([kind-t (apply-env env (string->symbol kind))]
+                                                              [l-exists (apply-env env (string->symbol name))])
+                                                         (cond
+                                                           [(equal? kind-t #f)    (error "kind must be an existing type" kind)]
+                                                           [l-exists  (error "name already in use elsewhere" l-exists)]
+                                                           [else                  (extend-env env (string->symbol name) kind-t) kind-t]))]
+           
+           [(NameType name kind next)                  (let ([next-t (typecheck next env)]
+                                                              [kind-t (apply-env env (string->symbol kind))]
+                                                              [l-exists (apply-env env (string->symbol name))])
+                                                         (cond
+                                                           [(equal? kind-t #f)    (error "kind must be an existing type" kind)]
+                                                           [l-exists  (error "name already in use elsewhere" l-exists)]
+                                                           [else                  (extend-env env (string->symbol name) kind-t) next-t]))]
+           [(NewArrayExpr type-id length init)         (let* ([id-t (apply-env env (string->symbol type-id))]
+                                                              [length-t (typecheck length env)]
+                                                              [init-t (typecheck init env)])
+                                                         (cond
+                                                           [(equal? id-t #f)   (error "type does not exist in the environment" type-id)]
+                                                           [(not (types:ArrayType?  id-t)) (error "type must be array type" id-t)]
+                                                           [(not (types:IntType? length-t))  (error "length must be of type int" length-t)]
+                                                           [(not (equal? init-t (types:ArrayType-element-type id-t))) (error "init value type must be same type as element type in array" init-t)]
+                                                           [else id-t]))]
+
+           [(types:VarValue type _ _ _ _ _)     type]
 
            ;;We can't test this and we have no idea if it works
            ;;We hope that the required errors are handled in the lower calls of typecheck and the environment persists
            ;;Declarations aren't working so we can't test this
            [(LetExpr decs exprs)            (let* ([new-env (push-scope env)]
                                                    [decs-t (typecheck decs new-env)]
-                                                   [exprs-t (typecheck exprs new-env)])
-                                              exprs-t)]
+                                                   [expr-check (typecheck exprs new-env)]
+                                                   [exprs-t (if (list? expr-check) (first expr-check) expr-check)])
+                                              (cond
+                                                [(not (equal? exprs-t '())) exprs-t]
+                                                [else (types:make-VoidType)]))]
            
            [(FieldAssign name expr)          (let ([name-t (apply-env env (string->symbol name))]
                                                    [expr-t (typecheck expr env)])
                                                (cond
-                                                 [(equal? name-t #f)      (error "l-value must be present in env")]
-                                                 [(not (equal? name-t expr-t))  (error "l-value and r-value must have same types" name-t expr-t)]
+                                                 [(equal? name-t #f)      (error "l-value must be present in env" name)]
+                                                 [(types:PengType? name-t) (types:make-VoidType)]
+                                                 [(types:PengType? expr-t) (types:make-VoidType)]
+                                                 [(not(equal? name-t expr-t))  (error "l-value and r-value must have same types" name-t expr-t)]
                                                  ;;Don't think we need to extend environment, because the type remains the same
                                                  [else expr-t]))]
            [(AssignmentExpr name expr)       (let* ([name-t (typecheck name env)]
                                                     [expr-t (typecheck expr env)])
                                                (cond
                                                  [(equal? name-t #f) (error "l-value not declared" name)]
+                                                 [(types:PengType? name-t) (types:make-VoidType)]
+                                                 [(types:PengType? expr-t) (types:make-VoidType)]
                                                  [(not (equal? name-t expr-t)) (error "l-value and expression must be same type" name-t expr-t)]
-                                                 [else expr-t]))]
+                                                 [else (types:make-VoidType)]))]
+           [(RecordType name fields '())    (let* (
+                                                   [name-t? (apply-env env (string->symbol name))]
+                                                   [temp-t (extend-env env (string->symbol name) (types:make-RecordType (string->symbol name) '()))]
+                                                   [field-t-list (typecheck fields env)]
+                                                   [rec-t (types:make-RecordType (string->symbol name) field-t-list)])
+                                              (cond
+                                                [(not(equal? name-t? #f))  (error "identifier already bound" name)]
+                                                [else (extend-env env (string->symbol name) rec-t) rec-t]))]
+           [(RecordType name fields next)    (let* ([next-t (typecheck next env)]
+                                                    [new-env (push-scope env)]
+                                                   [name-t? (apply-env new-env (string->symbol name))]
+                                                   [field-t-list (typecheck fields new-env)]
+                                                   [rec-t (types:make-RecordType (string->symbol name) field-t-list)])
+                                              (cond
+                                                [(not(equal? name-t? #f))  (error "identifier already bound" name)]
+                                                [else (extend-env env (string->symbol name) rec-t) (pop-scope new-env) next-t]))]
+           
+           [(RecordExpr name field)          (let* ([rec-t (typecheck name env)]
+                                                    ;[fields (if (types:VoidType? (first types:RecordType-fields rec-t))
+                                                    [field-t (field-helper (string->symbol field) (types:RecordType-fields rec-t))])
+                                               (cond
+                                                 [(equal? rec-t #f)        (error "Record type does not exist" name)]
+                                                 [(equal? field-t #f)      (error "Field does not exist in record type" field)]
+                                                 [else                     field-t]))]
+
+           [(NewRecordExpr name assns)       (let* ([rec-t (apply-env env (string->symbol name))]
+                                                    [temp-env (begin (push-scope env) (type-field-env env (types:RecordType-fields rec-t)))]
+                                                    [assn-t (typecheck assns temp-env)])
+                                               (pop-scope env) rec-t)]
+
+           [(FunDecl name args rettype body '()) (let* (
+                                                         [sym (string->symbol name)]
+                                                         [exists? (apply-env env sym)]
+                                                         [fun-env (push-scope env)]
+                                                         [args-list (typecheck args fun-env)]
+                                                         [body-type (typecheck body fun-env)]
+                                                         [ret-type (if (equal? rettype #f) body-type (apply-env env (string->symbol rettype)))]
+                                                         )
+                                                    (cond
+                                                      [(not (equal? exists? #f))   (error "Identifier already exists in the environment" sym)]
+                                                      [(not (equal? ret-type body-type)) (error "Body type and return type must match" body-type ret-type)]
+                                                      [else (pop-scope env)(extend-env env sym (types:make-FunValue sym args-list ret-type)) ret-type]))]
+
+           [(FunDecl name args rettype body next) (let* ([next-type (typecheck next env)]
+                                                         [sym (string->symbol name)]
+                                                         [exists? (apply-env env sym)]
+                                                         [fun-env (push-scope env)]
+                                                         [args-list (typecheck args fun-env)]
+                                                         [body-type (typecheck body fun-env)]
+                                                         [ret-type (if (equal? rettype #f) body-type (apply-env env (string->symbol rettype)))]
+                                                         )
+                                                    (cond
+                                                      [(not (equal? exists? #f))   (error "Identifier already exists in the environment" sym)]
+                                                      [(not (equal? ret-type body-type)) (error "Body type and return type must match" body-type ret-type)]
+                                                      [else (push-scope env)(extend-env env 'sym (types:make-FunValue sym args-list ret-type)) next-type]))]
+           [(FuncallExpr name args)               (let* ([sym (string->symbol name)]
+                                                         [exists? (apply-env env sym)])
+                                                    (cond
+                                                      [(not exists?)    (error "function does not exist" sym)]
+                                                      [(not(check-args (types:FunValue-parameters exists?) args env))   (error "args do not typematch parameters")]
+                                                      [else (types:FunValue-return-type exists?)]))]
                                                    
-           [_                      (error "Type check error")])])
+           [_                      (error "Type check error" ast)])])
     type-of-expr))
+
+(define (check-args src check env)
+  (cond
+    [(and (equal? src '()) (equal? check '()))  #t]
+    [(and (types:VoidType? (car src)) (equal? check '())) #t]
+    [(equal? (cdr (car src)) (typecheck (first check) env)) (check-args (cdr src) (cdr check) env)]
+    [else #f]))
+
+(define (field-helper field field-list)
+  (cond
+    [(equal? field-list '())                       #f]
+    [(equal? field-list types:VoidType)            #f]
+    [(equal? field (car (car field-list)))         (cdr (car field-list))]
+    [else                                          (field-helper field (rest field-list))]))
+
+(define (type-field-env env field-list)
+  (cond
+    [(equal? field-list '())        env]
+    [(types:VoidType? (first field-list)) env]
+    [else (extend-env env (car (car field-list)) (cdr (car field-list))) (type-field-env env (cdr field-list))]))
