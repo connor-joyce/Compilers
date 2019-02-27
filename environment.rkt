@@ -27,6 +27,12 @@
     [(hash-has-key? (first env) sym) (hash-ref (first env) sym)]
     [else (apply-env (rest env) sym)]))
 
+(define (apply-env-scope env sym)
+  (cond
+    [(eq? env '()) #f]
+    [(hash-has-key? (first env) sym) (hash-ref (first env) sym)]
+    [else #f]))
+
 ;;push-scope
 ;;push a new scope (hash table) onto the environment
 (define (push-scope env)
