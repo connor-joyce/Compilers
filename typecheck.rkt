@@ -12,7 +12,9 @@
     (extend-env tenv 'bool (types:make-BoolType))
     (extend-env tenv 'string (types:make-StringType))
     (extend-env tenv 'void (types:make-VoidType)) ;;Added this back in because NoVal's should return Void (I think)
-    (extend-env tenv 'peng (types:make-PengType))))
+    (extend-env tenv 'peng (types:make-PengType))
+    ;(extend-env (push-scope tenv) 'test (types:make-RecordType 'test (list(types:NameTypePair (types:make-IntType) 'x))))
+    ))
     
 
 (define typeEnv (make-parameter (init-typeEnv)))
@@ -72,11 +74,12 @@
            [(VarExpr name)                (apply-env env (string->symbol name))]
 
            [(TypeField name typ)       (let* ([sym (string->symbol name)]
-                                              [name-t? (apply-env-scope env sym)] ;; don't care if the name exists in the environment
+                                              [name-t? (apply-env-scope env sym)] ;; don't care if the name exists in the environment only in the current scope
                                               [typ-t (apply-env env (string->symbol typ))])
                                          (cond
                                            [(not (equal? #f name-t?))  (error "identifier already in environment" name)]
-                                           [else (extend-env env sym typ-t)(cons sym typ-t)]))]
+                                           [(equal? #f typ-t)          (error "typ must exist in environment" typ)]
+                                           [else (extend-env env sym typ-t)(types:NameTypePair typ-t sym)]))]
            [(IfExpr test true false)  (let* ([test-t (typecheck test env)]
                                             [true-t (typecheck true env)]
                                             [false-t (if (eq? false '()) true-t (typecheck false env))])
@@ -145,7 +148,7 @@
                                                               [l-exists (apply-env env (string->symbol name))])
                                                          (cond
                                                            [(equal? kind-t #f)    (error "kind must be an existing type" kind)]
-                                                           [l-exists  (error "name already in use elsewhere" l-exists)]
+                                                           [l-exists  (error "name already in use elsewhere" name kind kind-t l-exists)]
                                                            [else                  (extend-env env (string->symbol name) kind-t) kind-t]))]
            
            [(NameType name kind next)                  (let ([next-t (typecheck next env)]
@@ -195,22 +198,22 @@
                                                  [(types:PengType? expr-t) (types:make-VoidType)]
                                                  [(not (equal? name-t expr-t)) (error "l-value and expression must be same type" name-t expr-t)]
                                                  [else (types:make-VoidType)]))]
-           [(RecordType name fields '())    (let* (
+           [(RecordType name fields '())    (let* ([rec-env (push-scope env)]
                                                    [name-t? (apply-env env (string->symbol name))]
                                                    [temp-t (extend-env env (string->symbol name) (types:make-RecordType (string->symbol name) '()))]
-                                                   [field-t-list (typecheck fields env)]
+                                                   [field-t-list (typecheck fields rec-env)]
                                                    [rec-t (types:make-RecordType (string->symbol name) field-t-list)])
                                               (cond
                                                 [(not(equal? name-t? #f))  (error "identifier already bound" name)]
-                                                [else (extend-env env (string->symbol name) rec-t) rec-t]))]
-           [(RecordType name fields next)    (let* ([next-t (typecheck next env)]
-                                                    [new-env (push-scope env)]
-                                                   [name-t? (apply-env new-env (string->symbol name))]
-                                                   [field-t-list (typecheck fields new-env)]
+                                                [else (pop-scope env)(extend-env env (string->symbol name) rec-t) rec-t]))]
+           [(RecordType name fields next)    (let* ([rec-env (push-scope env)]
+                                                    [next-t (typecheck next env)]
+                                                   [name-t? (apply-env env (string->symbol name))]
+                                                   [field-t-list (typecheck fields rec-env)]
                                                    [rec-t (types:make-RecordType (string->symbol name) field-t-list)])
                                               (cond
                                                 [(not(equal? name-t? #f))  (error "identifier already bound" name)]
-                                                [else (extend-env env (string->symbol name) rec-t) (pop-scope new-env) next-t]))]
+                                                [else (pop-scope env) (extend-env env (string->symbol name) rec-t) next-t]))]
            
            [(RecordExpr name field)          (let* ([rec-t (typecheck name env)]
                                                     ;[fields (if (types:VoidType? (first types:RecordType-fields rec-t))
@@ -221,9 +224,9 @@
                                                  [else                     field-t]))]
 
            [(NewRecordExpr name assns)       (let* ([rec-t (apply-env env (string->symbol name))]
-                                                    [temp-env (begin (push-scope env) (type-field-env env (types:RecordType-fields rec-t)))]
+                                                    [temp-env (type-field-env (push-scope env) (types:RecordType-fields rec-t))]
                                                     [assn-t (typecheck assns temp-env)])
-                                               (pop-scope env) rec-t)]
+                                                rec-t)]
 
            [(FunDecl name args rettype body '()) (let* (
                                                          [sym (string->symbol name)]
@@ -249,7 +252,7 @@
                                                     (cond
                                                       [(not (equal? exists? #f))   (error "Identifier already exists in the environment" sym)]
                                                       [(not (equal? ret-type body-type)) (error "Body type and return type must match" body-type ret-type)]
-                                                      [else (push-scope env)(extend-env env 'sym (types:make-FunValue sym args-list ret-type)) next-type]))]
+                                                      [else (extend-env env 'sym (types:make-FunValue sym args-list ret-type)) next-type]))]
            [(FuncallExpr name args)               (let* ([sym (string->symbol name)]
                                                          [exists? (apply-env env sym)])
                                                     (cond
@@ -264,18 +267,18 @@
   (cond
     [(and (equal? src '()) (equal? check '()))  #t]
     [(and (types:VoidType? (car src)) (equal? check '())) #t]
-    [(equal? (cdr (car src)) (typecheck (first check) env)) (check-args (cdr src) (cdr check) env)]
+    [(equal? (types:NameTypePair-type (car src)) (typecheck (first check) env)) (check-args (cdr src) (cdr check) env)]
     [else #f]))
 
 (define (field-helper field field-list)
   (cond
     [(equal? field-list '())                       #f]
     [(equal? field-list types:VoidType)            #f]
-    [(equal? field (car (car field-list)))         (cdr (car field-list))]
+    [(equal? field (types:NameTypePair-name (car field-list)))         (types:NameTypePair-type (car field-list))]
     [else                                          (field-helper field (rest field-list))]))
 
 (define (type-field-env env field-list)
   (cond
     [(equal? field-list '())        env]
     [(types:VoidType? (first field-list)) env]
-    [else (extend-env env (car (car field-list)) (cdr (car field-list))) (type-field-env env (cdr field-list))]))
+    [else (extend-env env (types:NameTypePair-name (car field-list)) (types:NameTypePair-type (car field-list))) (type-field-env env (cdr field-list))]))
