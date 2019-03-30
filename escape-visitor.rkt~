@@ -1,0 +1,21 @@
+#lang racket
+
+(require "environment.rkt"
+         "types.rkt"
+         "Ni-parser.rkt")
+
+(provide (all-defined-out))
+
+(define escape-env (empty-env))
+
+(struct escape-info (escape? level))
+
+;;public facing function
+(define (escape-visitor ast)
+  (escape-visitor-helper ast 0))
+
+(define (escape-visitor-helper ast level)
+  (match (first ast)
+    ;;all possible structs 
+    [
+  
